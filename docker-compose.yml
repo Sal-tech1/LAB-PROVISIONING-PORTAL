@@ -101,7 +101,7 @@ volumes:
   grafana_data:
     name: lab_grafana_data
 
-# The custom network that Member 4 will connect to later
+# The custom network
 networks:
   portal-bridge:
     driver: bridge
