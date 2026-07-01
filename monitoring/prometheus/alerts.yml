@@ -1,0 +1,139 @@
+# =============================================================================
+# alerts.yml
+# PURPOSE:
+#   Defines rules that Prometheus checks constantly.
+#   When a rule's condition becomes true, Prometheus fires an "alert."
+#
+# PLAIN ENGLISH EXPLANATION:
+#   Each rule is like a smoke detector setting.
+#   You define: "if THIS metric crosses THIS value for THIS long → alert."
+#   Prometheus checks every 15 seconds (set in prometheus.yml).
+#
+# HOW TO CHECK YOUR ALERTS:
+#   Open http://localhost:9090/alerts in your browser.
+#   Green = inactive (good). Red = firing (something is wrong).
+#
+# HOW TO TEST AN ALERT:
+#   Temporarily lower the threshold to something tiny (e.g. 5% CPU)
+#   to force it to fire, then restore it.
+# =============================================================================
+
+groups:
+
+  # ── Host health alerts ─────────────────────────────────────────────────────
+  - name: host_health
+    rules:
+
+      # ── Alert 1: Disk space getting low ───────────────────────────────────
+      # Fires when less than 20% of disk space remains on any filesystem.
+      # "for: 2m" means the condition must be true for 2 minutes before
+      # alerting — this prevents false alarms from brief spikes.
+      - alert: DiskSpaceLow
+        expr: |
+          (
+            node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.lxcfs|squashfs"}
+            /
+            node_filesystem_size_bytes{fstype!~"tmpfs|fuse.lxcfs|squashfs"}
+            * 100
+          ) < 20
+        for: 2m
+        labels:
+          severity: warning                    # warning | critical
+        annotations:
+          summary: "Disk space low on {{ $labels.mountpoint }}"
+          description: |
+            Only {{ $value | printf "%.1f" }}% disk space remaining
+            on {{ $labels.instance }} at {{ $labels.mountpoint }}.
+            Consider cleaning up old Docker images with: docker system prune
+
+      # ── Alert 2: Disk space critically low ───────────────────────────────
+      # Fires when less than 10% remains — more urgent than the above.
+      - alert: DiskSpaceCritical
+        expr: |
+          (
+            node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.lxcfs|squashfs"}
+            /
+            node_filesystem_size_bytes{fstype!~"tmpfs|fuse.lxcfs|squashfs"}
+            * 100
+          ) < 10
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CRITICAL: Disk almost full on {{ $labels.mountpoint }}"
+          description: |
+            Only {{ $value | printf "%.1f" }}% disk remaining.
+            Immediate action needed on {{ $labels.instance }}.
+
+      # ── Alert 3: High CPU usage ───────────────────────────────────────────
+      # Fires when average CPU usage stays above 85% for 2 minutes.
+      # This is the main alert from Phase 3 (Week 6) — defined here early
+      # so you can test it. Threshold may be adjusted after load testing.
+      - alert: HighCPUUsage
+        expr: |
+          100 - (
+            avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100
+          ) > 85
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High CPU usage detected"
+          description: |
+            CPU usage is {{ $value | printf "%.1f" }}% on {{ $labels.instance }}.
+            This may indicate too many containers are running simultaneously.
+            Check active sessions and consider reducing concurrent lab limit.
+
+      # ── Alert 4: High RAM usage ───────────────────────────────────────────
+      # Fires when less than 15% RAM is available.
+      - alert: HighMemoryUsage
+        expr: |
+          (
+            node_memory_MemAvailable_bytes
+            /
+            node_memory_MemTotal_bytes
+            * 100
+          ) < 15
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: |
+            Only {{ $value | printf "%.1f" }}% memory remaining.
+            Available: {{ $value | humanize }}B.
+            Consider running the garbage collector manually.
+
+      # ── Alert 5: Node Exporter is down ───────────────────────────────────
+      # Fires immediately if Prometheus can't reach node-exporter.
+      # Means we've lost visibility into host metrics.
+      - alert: NodeExporterDown
+        expr: up{job="node-exporter"} == 0
+        for: 0m                              # fire immediately, no waiting
+        labels:
+          severity: critical
+        annotations:
+          summary: "Node Exporter is down"
+          description: |
+            Cannot collect host metrics from {{ $labels.instance }}.
+            Run: docker compose up -d node-exporter
+
+  # ── Docker / container alerts ──────────────────────────────────────────────
+  # These will become more useful in Phase 2 when containers are running.
+  - name: docker_health
+    rules:
+
+      # ── Alert 6: Too many containers running ──────────────────────────────
+      # Fires if more than 25 containers are running at once.
+      # Adjust this number based on your host machine's capacity.
+      - alert: TooManyContainers
+        expr: count(container_last_seen) > 25
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Too many containers running ({{ $value }})"
+          description: |
+            {{ $value }} containers currently active.
+            The garbage collector should clean up stale ones automatically.
+            If this persists, check garbage_collector.py is running via cron.
