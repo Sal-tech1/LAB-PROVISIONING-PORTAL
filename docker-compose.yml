@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  # ---------------------------------------------------------
+  # INFRASTRUCTURE & NETWORKING
+  # ---------------------------------------------------------
+  student-lab:
+    image: lab-alpine:v2        
+    container_name: alpine-lab-1
+    ports:
+      - "8080:8080"             
+    networks:
+      - portal-bridge           
+
+# The custom network that Member 4 will connect to later
+networks:
+  portal-bridge:
+    driver: bridge
