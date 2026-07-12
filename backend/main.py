@@ -7,6 +7,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from backend.api.sessions import router as sessions_router
 from backend.database import get_db
 
 app = FastAPI(
@@ -14,6 +15,8 @@ app = FastAPI(
     description="Automated containerized lab provisioning backend API.",
     version="0.1.0",
 )
+
+app.include_router(sessions_router)
 
 
 @app.get("/health")
