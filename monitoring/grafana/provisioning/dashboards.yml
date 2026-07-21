@@ -1,0 +1,30 @@
+# =============================================================================
+# dashboards.yml
+# Member 4 (SRE) — Week 3 Task 1
+#
+# PURPOSE:
+#   Tells Grafana where to find dashboard JSON files on startup.
+#   Without this, you'd have to manually import each dashboard
+#   through the Grafana UI every time Grafana restarts.
+#
+# HOW IT WORKS:
+#   Grafana reads this file on startup and automatically loads any
+#   JSON files it finds in the dashboards/ folder. Your SRE dashboard
+#   will appear under Home → Dashboards → Lab Portal → SRE Dashboard
+# =============================================================================
+
+apiVersion: 1
+
+providers:
+  - name: "Lab Portal Dashboards"
+    orgId: 1
+    folder: "Lab Portal"             # Folder name shown in Grafana UI
+    type: file
+    disableDeletion: false           # Allow deleting from UI
+    editable: true                   # Allow editing in UI
+    updateIntervalSeconds: 30        # Check for new/changed JSON files every 30s
+
+    options:
+      # Path inside the Grafana container where dashboards live
+      # (mapped via Docker volume in docker-compose.yml)
+      path: /var/lib/grafana/dashboards
