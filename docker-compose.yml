@@ -8,15 +8,30 @@ services:
     ports:
       - "8080:8080"             
     networks:
-      - portal-bridge           
+      - portal-bridge            
+
+  # ── ADDED: PostgreSQL Database for Brian's Backend ───────
+  postgres-db:
+    image: postgres:15-alpine
+    container_name: portal-database
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=lab_portal
+    ports:
+      - "5432:5432"
+    networks:
+      - portal-bridge
+
+  # ---------------------------------------------------------
+  # SRE INFRASTRUCTURE
+  # ---------------------------------------------------------
   prometheus:
     image: prom/prometheus:v2.51.0
     container_name: prometheus
     restart: unless-stopped                    # auto-restart if it crashes
-
     ports:
       - "9090:9090"                            # http://localhost:9090
-
     volumes:
       # Mount our config file into the container so Prometheus uses it
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
@@ -24,15 +39,13 @@ services:
       - ./monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
       # Store Prometheus data on your machine (survives container restarts)
       - prometheus_data:/prometheus
-
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
       - "--storage.tsdb.retention.time=7d"    # keep 7 days of data
       - "--web.enable-lifecycle"               # allows config reload without restart
-
     networks:
-      - monitoring
+      - portal-bridge # <-- FIXED: Changed from 'monitoring' to 'portal-bridge'
 
   # ── Node Exporter ───────────────────────────────────────────────────────────
   # The "reporter" that exposes your host machine's stats as a /metrics URL.
@@ -42,24 +55,20 @@ services:
     image: prom/node-exporter:v1.7.0
     container_name: node-exporter
     restart: unless-stopped
-
     ports:
       - "9100:9100"                            # http://localhost:9100/metrics
-
     volumes:
       # These mounts let node-exporter read host system information
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /:/rootfs:ro
-
     command:
       - "--path.procfs=/host/proc"
       - "--path.rootfs=/rootfs"
       - "--path.sysfs=/host/sys"
       - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
-
     networks:
-      - monitoring
+      - portal-bridge # <-- FIXED
 
   # ── Grafana ─────────────────────────────────────────────────────────────────
   # The visual dashboard. Reads data from Prometheus and displays it as charts.
@@ -69,16 +78,13 @@ services:
     image: grafana/grafana:10.4.0
     container_name: grafana
     restart: unless-stopped
-
     ports:
       - "3000:3000"                            # http://localhost:3000
-
     environment:
       # Set the admin password directly so you don't need to reset it on first run
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=labportal123
       - GF_USERS_ALLOW_SIGN_UP=false           # only admins can create accounts
-
     volumes:
       # Store Grafana dashboards and settings on your machine
       - grafana_data:/var/lib/grafana
@@ -93,9 +99,8 @@ services:
 
     depends_on:
       - prometheus                             # start Prometheus first
-
     networks:
-      - monitoring
+      - portal-bridge # <-- FIXED
 
 # ── Named volumes ─────────────────────────────────────────────────────────────
 # These store data on your machine so it survives container restarts
@@ -105,7 +110,7 @@ volumes:
   grafana_data:
     name: lab_grafana_data
 
-# The custom network that Member 4 will connect to later
+# The custom network
 networks:
   portal-bridge:
     driver: bridge
