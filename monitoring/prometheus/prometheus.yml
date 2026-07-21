@@ -1,7 +1,47 @@
 global:
   scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+  external_labels:
+    project: "lab-provisioning-portal"
+    environment: "development"
 
+rule_files:
+  - "/etc/prometheus/alerts.yml"
+  
 scrape_configs:
-  - job_name: 'node-exporter'
+  - # Prometheus monitors itself
+  - job_name: "prometheus"
     static_configs:
-      - targets: ['node-exporter:9100']
+      - targets: ["localhost:9090"]
+        labels:
+          service: "prometheus"
+
+  # Node Exporter — host CPU, RAM, disk, network
+  - job_name: "node-exporter"
+    static_configs:
+      - targets: ["node-exporter:9100"]
+        labels:
+          service: "host-machine"
+
+  # ── NEW in Week 3 ──────────────────────────────────────────────────────────
+  # Garbage Collector — scrapes the GC's own metrics (containers killed, etc.)
+  # The GC starts a tiny HTTP server on port 9101 when it runs.
+  # These metrics power the "Containers Killed by GC" panel in Grafana.
+  - job_name: "garbage-collector"
+    static_configs:
+      - targets: ["localhost:9101"]
+        labels:
+          service: "garbage-collector"
+    # The GC only runs every 15 minutes so metrics may be stale between runs.
+    # scrape_interval of 60s is fine here — we don't need real-time GC data.
+    scrape_interval: 60s
+
+  # ── Future targets (uncomment when ready) ──────────────────────────────────
+  # - job_name: "fastapi-backend"
+  #   static_configs:
+  #     - targets: ["backend:8000"]
+  #
+  # - job_name: "cadvisor"
+  #   static_configs:
+  #     - targets: ["cadvisor:8080"]
